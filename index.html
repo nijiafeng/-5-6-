@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>二下计算练习（207、208）- 随机出题系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+    </script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js">
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Microsoft YaHei', 'SimHei', 'Segoe UI', 'Roboto', sans-serif;
+        }
+        body {
+            background-color: #eef2f7;
+            padding: 12px;
+            line-height: 1.5;
+            color: #1e2a3e;
+        }
+        .container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: white;
+            padding: 5mm 8mm 8mm 8mm;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        h1 {
+            color: #1e466e;
+            font-size: 27px;
+            letter-spacing: 2px;
+            font-family: 'STKaiti', 'KaiTi', '楷体', serif;
+            font-weight: bold;
+            border-bottom: 2px solid #cbd5e1;
+            display: inline-block;
+            padding: 0 20px 4px 20px;
+            margin-bottom: 4px;
+        }
+        .info {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            background: #f8fafc;
+            padding: 5px 10px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            border: 1px solid #e2e8f0;
+        }
+        .section {
+            margin-bottom: 14px;
+            page-break-inside: avoid;
+        }
+        h2 {
+            color: #2c5a8c;
+            font-size: 17px;
+            border-left: 6px solid #f39c12;
+            padding-left: 10px;
+            margin: 6px 0 8px 0;
+            background: #fef9e6;
+            line-height: 1.3;
+            border-radius: 0 12px 12px 0;
+        }
+        .question-group {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px 16px;
+            margin-bottom: 8px;
+        }
+        .question {
+            padding: 6px 4px;
+            font-size: 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #e9ecef;
+            min-height: 42px;
+            word-break: keep-all;
+            white-space: nowrap;
+            overflow-x: auto;
+            background: #ffffff;
+        }
+        @media (max-width: 700px) {
+            .question { white-space: normal; flex-wrap: wrap; }
+            .container { width: 100%; padding: 3mm 5mm; }
+        }
+        .blank {
+            display: inline-block;
+            min-width: 32px;
+            border-bottom: none;
+            background: #fef0d8;
+            border-radius: 4px;
+            margin: 0 3px;
+            line-height: 1.3;
+            vertical-align: middle;
+            text-indent: 3px;
+            font-size: 14px;
+        }
+        .ellipsis {
+            font-weight: 600;
+            margin: 0 2px;
+            display: inline-block;
+        }
+        .division-row, .calculation-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .division-item, .calculation-item {
+            display: flex;
+            flex-direction: column;
+            min-height: 150px;
+        }
+        .division-question, .calculation-question {
+            font-size: 14px;
+            font-weight: normal;
+            padding: 5px 8px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            text-align: left;
+            background: #ffffff;
+        }
+        .division-space, .calculation-space, .verification-calculation-space, .verification-space {
+            flex: 1;
+            min-height: 120px;
+            position: relative;
+        }
+        .division-space::before, .calculation-space::before,
+        .verification-calculation-space::before, .verification-space::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            border: 2px dashed #3b82b6;
+            border-radius: 12px;
+            background: #ffffff;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        .verification-container {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+            flex: 1;
+            min-height: 120px;
+        }
+        .star {
+            color: #e63946;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 12px;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 8px;
+            font-size: 13px;
+            color: #4b5563;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .control-btn {
+            background-color: #2c5a8c;
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+        .control-btn.generate { background-color: #2b7a4b; }
+        .control-btn.generate:hover { background-color: #1e5a38; }
+        .control-btn:hover { background-color: #1e3a5f; transform: translateY(-1px); }
+        .control-btn.zip { background-color: #e67e22; }
+        .control-btn.zip:hover { background-color: #d35400; }
+        .copy-input {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #fff;
+            padding: 4px 12px;
+            border-radius: 40px;
+            border: 1px solid #cbd5e1;
+        }
+        .copy-input input {
+            width: 60px;
+            padding: 6px 8px;
+            border-radius: 30px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.75);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            backdrop-filter: blur(4px);
+        }
+        .loading.show { display: flex; }
+        .spinner {
+            border: 8px solid rgba(255,255,255,0.3);
+            border-top: 8px solid #f39c12;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        .loading p {
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            margin: 4px 0;
+        }
+        .progress-bar {
+            width: 280px;
+            height: 8px;
+            background: rgba(255,255,255,0.25);
+            border-radius: 4px;
+            margin-top: 16px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #f39c12;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @media print {
+            @page {
+                size: A4;
+                margin: 4mm 10mm 20mm 10mm;
+            }
+            body { background: white; padding: 0; margin: 0; }
+            .container { box-shadow: none; padding: 0; width: 100%; min-height: auto; }
+            .controls { display: none; }
+            .division-space::before, .calculation-space::before,
+            .verification-calculation-space::before, .verification-space::before { border: 1.5px solid #333 !important; }
+            h1 { margin-top: 0; }
+            .section { margin-bottom: 8px; }
+            .footer { margin-top: 6px; }
+        }
+    </style>
+</head>
+<body>
+<div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p id="loadingText">正在生成PDF，请稍候...</p>
+    <p id="loadingTime" style="font-size:14px; opacity:0.9;"></p>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+<div class="controls">
+    <button class="control-btn generate" id="generateQuestions">随机出题</button>
+    <button class="control-btn" id="downloadSinglePdf">下载当前PDF</button>
+    <div class="copy-input">
+        <label>份数:</label>
+        <input type="number" id="pdfCount" min="1" max="20" value="5" step="1">
+    </div>
+    <button class="control-btn zip" id="downloadZip">打包下载ZIP</button>
+</div>
+<div class="container" id="content">
+    <div class="header"><h1>二下计算练习（207、208）</h1></div>
+    <div class="info">
+        <div>用时：__________</div><div>姓名：__________</div><div>日期：__________</div><div>得分：__________</div>
+    </div>
+    <div class="section"><h2>一、直接写出得数（每题2分）</h2><div class="question-group" id="part1"></div></div>
+    <div class="section"><h2>二、竖式计算1（每题2分，横线用尺！数位对齐！）</h2>
+        <div class="division-row" id="part3-row"></div>
+    </div>
+    <div class="section"><h2>三、竖式计算2（标记*的2题需验算，每题4分，其余每题2分。横线用尺！数位对齐！）</h2>
+        <div class="calculation-row" id="part4-row1"></div>
+        <div class="calculation-row" id="part4-row2"></div>
+    </div>
+    <!-- 删除完成时间 -->
+</div>
+
+<script>
+(function() {
+    // ---------- 安全随机数 ----------
+    function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function oneDigit() { return rand(1, 9); }
+    function twoDigit() { return rand(10, 99); }
+    function threeDigit() { return rand(100, 999); }
+    function randHundred() { return rand(1, 9) * 100; }
+    function randThousand() { return rand(1, 9) * 1000; }
+    function randThousandHundred() { return rand(1, 9) * 1000 + rand(1, 9) * 100; }
+    function randTens() { return rand(1, 9) * 100 + rand(1, 9) * 10; }
+    function randDecade() { return rand(1, 9) * 10; }
+    const addOrSub = () => Math.random() < 0.5 ? '+' : '-';
+
+    function clamp(val) {
+        if (val < 0) return 0;
+        if (val > 10000) return 10000;
+        return val;
+    }
+
+    function generateUniqueItems(generatorFunc, targetCount) {
+        const items = [];
+        const set = new Set();
+        let attempts = 0;
+        while (items.length < targetCount && attempts < 400) {
+            const newItem = generatorFunc();
+            if (newItem.answer !== undefined && (newItem.answer < 0 || newItem.answer > 10000)) {
+                attempts++;
+                continue;
+            }
+            const key = newItem.html.replace(/\s+/g, '');
+            if (!set.has(key)) {
+                set.add(key);
+                items.push(newItem);
+            }
+            attempts++;
+        }
+        while (items.length < targetCount) items.push({ html: `1 + 1 =`, answer: 2 });
+        return items;
+    }
+
+    // 原有20题（保持不变）
+    function buildOneOriginal() {
+        const type = rand(1, 20);
+        if (type === 1) {
+            let a = oneDigit(), b = oneDigit(), c = rand(1, 80);
+            return { html: `${a} × ${b} + ${c} =`, answer: clamp(a * b + c) };
+        }
+        if (type === 2) {
+            let a = oneDigit(), b = oneDigit();
+            let prod = a * b;
+            let c = prod > 1 ? rand(1, prod - 1) : 1;
+            return { html: `${a} × ${b} - ${c} =`, answer: prod - c };
+        }
+        if (type === 3) {
+            let a = twoDigit(), b = twoDigit(), c = rand(10, 80);
+            return { html: `${a} + ${b} + ${c} =`, answer: clamp(a + b + c) };
+        }
+        if (type === 4) {
+            let A = rand(70, 99), B = rand(10, 30), C = rand(10, 30);
+            while (A - B - C < 0) { B = rand(10, 30); C = rand(10, 30); }
+            return { html: `${A} - ${B} - ${C} =`, answer: A - B - C };
+        }
+        if (type === 5) {
+            let a = twoDigit(), b = twoDigit();
+            let c = rand(10, Math.min(99, a + b));
+            return { html: `${a} + ${b} - ${c} =`, answer: a + b - c };
+        }
+        if (type === 6) {
+            let a = rand(40, 99), b = rand(10, a - 5), c = twoDigit();
+            return { html: `${a} - ${b} + ${c} =`, answer: clamp(a - b + c) };
+        }
+        if (type === 7) {
+            let num = rand(1, 80), a = oneDigit(), b = oneDigit();
+            return { html: `${num} + ${a} × ${b} =`, answer: clamp(num + a * b) };
+        }
+        if (type === 8) {
+            let a = oneDigit(), b = oneDigit();
+            let prod = a * b;
+            let num = rand(prod, 99);
+            return { html: `${num} - ${a} × ${b} =`, answer: num - prod };
+        }
+        if (type === 9) {
+            let divisor = rand(2, 9), quot = rand(1, 9);
+            let dividend = divisor * quot;
+            let two = twoDigit();
+            return { html: `${two} + ${dividend} ÷ ${divisor} =`, answer: clamp(two + quot) };
+        }
+        if (type === 10) {
+            let divisor = rand(2, 9), quot = rand(1, 9);
+            let dividend = divisor * quot;
+            let two = rand(dividend / quot + 1, 99);
+            return { html: `${two} - ${dividend} ÷ ${divisor} =`, answer: two - quot };
+        }
+        if (type === 11) {
+            let divisor = rand(2, 9), quot = rand(1, 9);
+            let dividend = divisor * quot;
+            let add = rand(1, 70);
+            return { html: `${dividend} ÷ ${divisor} + ${add} =`, answer: clamp(quot + add) };
+        }
+        if (type === 12) {
+            let divisor = rand(2, 9), quot = rand(2, 9);
+            let dividend = divisor * quot;
+            let sub = rand(1, quot - 1);
+            return { html: `${dividend} ÷ ${divisor} - ${sub} =`, answer: quot - sub };
+        }
+        if (type >= 13 && type <= 16) {
+            let dv = rand(3, 9), qt = rand(2, 9), rem = rand(1, dv - 1);
+            let dd = dv * qt + rem;
+            return { html: `${dd} ÷ ${dv} =`, answer: `${qt}……${rem}` };
+        }
+        if (type === 17) {
+            let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
+            let dd = dv * qt + rem;
+            return { html: `( <span class="blank"></span> ) ÷ ${dv} = ${qt}<span class="ellipsis">……</span>${rem}`, answer: dd };
+        }
+        if (type === 18) {
+            let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
+            let dd = dv * qt + rem;
+            return { html: `${dd} ÷ ( <span class="blank"></span> ) = ${qt}<span class="ellipsis">……</span>${rem}`, answer: dv };
+        }
+        if (type === 19) {
+            let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
+            let dd = dv * qt + rem;
+            return { html: `${dd} ÷ ${dv} = ( <span class="blank"></span> )<span class="ellipsis">……</span>${rem}`, answer: qt };
+        }
+        let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
+        let dd = dv * qt + rem;
+        return { html: `${dd} ÷ ${dv} = ${qt}<span class="ellipsis">……</span>( <span class="blank"></span> )`, answer: rem };
+    }
+    function buildOriginal20() { return generateUniqueItems(() => buildOneOriginal(), 20); }
+
+    // 新增16道题（保持不变）
+    function type1() {
+        let a = randHundred(), b = randHundred();
+        if (Math.random() < 0.5) return { html: `${a} + ${b} =`, answer: clamp(a + b) };
+        else return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+    }
+    function type2() {
+        let a = randThousand(), b = randThousand();
+        if (Math.random() < 0.5) {
+            let sum = a + b;
+            while (sum > 10000) { a = randThousand(); b = randThousand(); sum = a + b; }
+            return { html: `${a} + ${b} =`, answer: sum };
+        } else {
+            return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+        }
+    }
+    function type3() {
+        let useOrder = Math.random() < 0.5;
+        let a = useOrder ? randThousandHundred() : randThousand();
+        let b = useOrder ? randThousand() : randThousandHundred();
+        if (Math.random() < 0.5) {
+            let sum = a + b;
+            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+            else return { html: `${a} + ${b} =`, answer: sum };
+        } else {
+            return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+        }
+    }
+    function type4() {
+        let a = randThousandHundred(), b = randHundred();
+        if (Math.random() < 0.5) {
+            let sum = a + b;
+            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+            else return { html: `${a} + ${b} =`, answer: sum };
+        } else {
+            let sum = a + b;
+            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+            else return { html: `${b} + ${a} =`, answer: sum };
+        }
+    }
+    function type5() {
+        let a = randThousandHundred(), b = randThousandHundred();
+        if (Math.random() < 0.5) {
+            let sum = a + b;
+            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+            else return { html: `${a} + ${b} =`, answer: sum };
+        } else {
+            return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+        }
+    }
+    function type6() {
+        let a = randThousand(), b = randHundred();
+        if (Math.random() < 0.5) {
+            let sum = a + b;
+            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+            else return { html: `${a} + ${b} =`, answer: sum };
+        } else {
+            let sum = a + b;
+            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+            else return { html: `${b} + ${a} =`, answer: sum };
+        }
+    }
+
+    function generateBlankEquation(numGen, targetGen) {
+        const modes = ['A+', 'A-', 'B+', 'B-'];
+        for (let attempt = 0; attempt < 150; attempt++) {
+            let mode = modes[rand(0, modes.length - 1)];
+            let num = numGen();
+            let target = targetGen();
+            let blank, html;
+            if (mode === 'A+') {
+                if (target >= num) {
+                    blank = target - num;
+                    html = `( <span class="blank"></span> ) + ${num} = ${target}`;
+                    if (blank <= 10000) return { html, answer: blank };
+                }
+            } else if (mode === 'A-') {
+                blank = target + num;
+                if (blank <= 10000) {
+                    html = `( <span class="blank"></span> ) - ${num} = ${target}`;
+                    return { html, answer: blank };
+                }
+            } else if (mode === 'B+') {
+                if (target >= num) {
+                    blank = target - num;
+                    html = `${num} + ( <span class="blank"></span> ) = ${target}`;
+                    if (blank <= 10000) return { html, answer: blank };
+                }
+            } else if (mode === 'B-') {
+                if (num >= target) {
+                    blank = num - target;
+                    html = `${num} - ( <span class="blank"></span> ) = ${target}`;
+                    if (blank <= 10000) return { html, answer: blank };
+                }
+            }
+        }
+        return { html: `( <span class="blank"></span> ) + 100 = 200`, answer: 100 };
+    }
+
+    function type7() { return generateBlankEquation(randHundred, randThousand); }
+    function type8() { return generateBlankEquation(randHundred, randThousandHundred); }
+    function type9() { return generateBlankEquation(randHundred, randHundred); }
+    function type10() { return generateBlankEquation(randThousand, randThousand); }
+    function type11() { return generateBlankEquation(randThousand, randThousandHundred); }
+    function type12() { return generateBlankEquation(randThousandHundred, randThousand); }
+    function type13() { return generateBlankEquation(randThousandHundred, randThousandHundred); }
+
+    function type14() {
+        let a, b;
+        if (Math.random() < 0.5) { a = randHundred(); b = randTens(); }
+        else { a = randTens(); b = randHundred(); }
+        let op = addOrSub();
+        let result = op === '+' ? a + b : a - b;
+        if (result < 0) result = b - a;
+        return { html: `${Math.max(a, b)} ${op} ${Math.min(a, b)} =`, answer: clamp(result) };
+    }
+    function type15() {
+        let a, b;
+        if (Math.random() < 0.5) { a = randHundred(); b = randDecade(); }
+        else { a = randDecade(); b = randHundred(); }
+        let op = addOrSub();
+        let result = op === '+' ? a + b : a - b;
+        if (result < 0) result = b - a;
+        return { html: `${Math.max(a, b)} ${op} ${Math.min(a, b)} =`, answer: clamp(result) };
+    }
+    function type16() {
+        let a = randTens(), b = randTens();
+        let op = addOrSub();
+        let result = op === '+' ? a + b : a - b;
+        if (result < 0) result = b - a;
+        return { html: `${Math.max(a, b)} ${op} ${Math.min(a, b)} =`, answer: clamp(result) };
+    }
+
+    function buildExtra16() {
+        let items = [type1(), type2(), type3(), type4(), type5(), type6(),
+                     type7(), type8(), type9(), type10(), type11(), type12(),
+                     type13(), type14(), type15(), type16()];
+        for (let i = 0; i < items.length; i++) items[i].answer = clamp(items[i].answer);
+        for (let i = items.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [items[i], items[j]] = [items[j], items[i]];
+        }
+        return items;
+    }
+
+    function renderPart1() {
+        const container = document.getElementById('part1');
+        container.innerHTML = '';
+        const all = [...buildOriginal20(), ...buildExtra16()];
+        for (let i = all.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [all[i], all[j]] = [all[j], all[i]];
+        }
+        all.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'question';
+            div.innerHTML = item.html;
+            container.appendChild(div);
+        });
+    }
+
+    function renderPart3() {
+        const row = document.getElementById('part3-row');
+        row.innerHTML = '';
+        for (let i = 0; i < 4; i++) {
+            const divisor = rand(3, 9), quotient = rand(3, 9), remainder = rand(1, divisor - 1);
+            const dividend = divisor * quotient + remainder;
+            const divItem = document.createElement('div');
+            divItem.className = 'division-item';
+            divItem.innerHTML = `<div class="division-question">${dividend} ÷ ${divisor} =</div><div class="division-space"></div>`;
+            row.appendChild(divItem);
+        }
+    }
+
+    function generateThirdPartQuestion(type) {
+        switch (type) {
+            case 'tripleAddTriple': {
+                let a = threeDigit(), b = threeDigit();
+                let sum = a + b;
+                if (Math.random() < 0.5) while (sum >= 1000) { a = threeDigit(); b = threeDigit(); sum = a + b; }
+                else while (sum < 1000 || sum > 10000) { a = threeDigit(); b = threeDigit(); sum = a + b; }
+                return { html: `${a} + ${b} =`, answer: sum };
+            }
+            case 'twoThreeAdd': {
+                if (Math.random() < 0.5) {
+                    let a = twoDigit(), b = threeDigit();
+                    let sum = a + b;
+                    while (sum > 10000) { a = twoDigit(); b = threeDigit(); sum = a + b; }
+                    return { html: `${a} + ${b} =`, answer: sum };
+                } else {
+                    let a = threeDigit(), b = twoDigit();
+                    let sum = a + b;
+                    while (sum > 10000) { a = threeDigit(); b = twoDigit(); sum = a + b; }
+                    return { html: `${a} + ${b} =`, answer: sum };
+                }
+            }
+            case 'fourAddFour': {
+                let a = rand(1000, 5000), b = rand(1000, 5000);
+                let sum = a + b;
+                while (sum > 10000) { a = rand(1000, 5000); b = rand(1000, 5000); sum = a + b; }
+                return { html: `${a} + ${b} =`, answer: sum };
+            }
+            case 'fourThreeAdd': {
+                if (Math.random() < 0.5) {
+                    let a = rand(1000, 7000), b = threeDigit();
+                    let sum = a + b;
+                    while (sum > 10000) { a = rand(1000, 7000); b = threeDigit(); sum = a + b; }
+                    return { html: `${a} + ${b} =`, answer: sum };
+                } else {
+                    let a = threeDigit(), b = rand(1000, 7000);
+                    let sum = a + b;
+                    while (sum > 10000) { a = threeDigit(); b = rand(1000, 7000); sum = a + b; }
+                    return { html: `${a} + ${b} =`, answer: sum };
+                }
+            }
+            case 'fourSubThree': {
+                let a = rand(1000, 9999), b = threeDigit();
+                let diff = a - b;
+                while (diff < 0) { a = rand(1000, 9999); b = threeDigit(); diff = a - b; }
+                return { html: `${a} - ${b} =`, answer: diff };
+            }
+            case 'fourSubFour': {
+                let a = rand(1000, 9999), b = rand(1000, 9999);
+                let diff = a - b;
+                while (diff < 0) { a = rand(1000, 9999); b = rand(1000, 9999); diff = a - b; }
+                return { html: `${a} - ${b} =`, answer: diff };
+            }
+            case 'specialSubA': {
+                let a = rand(101, 199);
+                let b = rand(10, 98);
+                let aOnes = a % 10;
+                let bOnes = b % 10;
+                while (aOnes >= bOnes) {
+                    b = Math.floor(b / 10) * 10 + rand( (aOnes + 1) , 9 );
+                    bOnes = b % 10;
+                }
+                if (a < b) [a, b] = [b, a];
+                return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+            }
+            case 'specialSubB': {
+                let a = threeDigit(), b = threeDigit();
+                let diff = a - b;
+                while (diff < 0) { a = threeDigit(); b = threeDigit(); diff = a - b; }
+                return { html: `${a} - ${b} =`, answer: diff };
+            }
+            default: return { html: `1 + 1 =`, answer: 2 };
+        }
+    }
+
+    function renderPart4() {
+        const row1 = document.getElementById('part4-row1');
+        const row2 = document.getElementById('part4-row2');
+        row1.innerHTML = ''; row2.innerHTML = '';
+        let types = ['tripleAddTriple', 'twoThreeAdd', 'fourAddFour', 'fourThreeAdd', 
+                     'fourSubThree', 'fourSubFour', 'specialSubA', 'specialSubB'];
+        for (let i = types.length - 1; i > 0; i--) { 
+            const j = Math.floor(Math.random() * (i + 1)); 
+            [types[i], types[j]] = [types[j], types[i]]; 
+        }
+        let verifyIndices = [];
+        while (verifyIndices.length < 2) { 
+            let idx = rand(0, 7); 
+            if (!verifyIndices.includes(idx)) verifyIndices.push(idx); 
+        }
+        for (let i = 0; i < types.length; i++) {
+            let q = generateThirdPartQuestion(types[i]);
+            let needStar = verifyIndices.includes(i);
+            let starMark = needStar ? '<span class="star">*</span>' : '';
+            let text = q.html;
+            let item = document.createElement('div');
+            item.className = 'calculation-item';
+            if (needStar) {
+                item.innerHTML = `<div class="calculation-question">${starMark} ${text}</div><div class="verification-container"><div class="verification-calculation-space"></div><div class="verification-space"></div></div>`;
+            } else {
+                item.innerHTML = `<div class="calculation-question">${starMark} ${text}</div><div class="calculation-space"></div>`;
+            }
+            if (i < 4) row1.appendChild(item); else row2.appendChild(item);
+        }
+    }
+
+    function generateAll() { renderPart1(); renderPart3(); renderPart4(); }
+
+    // 高清截图添加到PDF
+    async function addPageFromCanvas(pdf, canvas) {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(async (blob) => {
+                if (!blob) { reject(new Error('Canvas toBlob 失败')); return; }
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => {
+                    const pageWidth = pdf.internal.pageSize.getWidth();
+                    const imgWidth = pageWidth - 20;
+                    const imgHeight = (img.height * imgWidth) / img.width;
+                    pdf.addImage(img, 'JPEG', 10, 5, imgWidth, imgHeight);
+                    URL.revokeObjectURL(url);
+                    resolve();
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片加载失败')); };
+                img.src = url;
+            }, 'image/jpeg', 0.92);
+        });
+    }
+
+    // 下载当前单份PDF
+    async function downloadSingle() {
+        const loading = document.getElementById('loading');
+        loading.classList.add('show');
+        document.getElementById('loadingText').innerText = '正在生成当前PDF...';
+        try {
+            const canvas = await html2canvas(document.getElementById('content'), { scale: 2.0, backgroundColor: '#ffffff', logging: false });
+            const pdf = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            await addPageFromCanvas(pdf, canvas);
+            canvas.width = 0; canvas.height = 0;
+            pdf.save('二下练习_当前.pdf');
+        } catch(e) { alert('生成失败'); } finally { loading.classList.remove('show'); }
+    }
+
+    // ★ 打包下载ZIP（每次生成独立PDF，最终打包）
+    async function downloadZip() {
+        let count = parseInt(document.getElementById('pdfCount').value);
+        if (isNaN(count) || count < 1) count = 1;
+        if (count > 20) { alert('ZIP最多支持20份'); count = 20; document.getElementById('pdfCount').value = 20; }
+
+        const loading = document.getElementById('loading');
+        const loadingText = document.getElementById('loadingText');
+        const loadingTime = document.getElementById('loadingTime');
+        const progressFill = document.getElementById('progressFill');
+        loading.classList.add('show');
+        progressFill.style.width = '0%';
+        loadingTime.innerText = '';
+
+        const zip = new JSZip();
+        const startTime = Date.now();
+        try {
+            for (let i = 1; i <= count; i++) {
+                const percent = Math.round((i / count) * 100);
+                loadingText.innerText = `正在生成第 ${i}/${count} 份试卷 (${percent}%)`;
+
+                if (i > 1) {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const avg = elapsed / (i - 1);
+                    const remaining = Math.round(avg * (count - i + 1));
+                    loadingTime.innerText = `预计还需 ${remaining} 秒`;
+                }
+                progressFill.style.width = percent + '%';
+
+                generateAll();
+                await new Promise(r => setTimeout(r, 250));
+
+                const canvas = await html2canvas(document.getElementById('content'), {
+                    scale: 2.0,
+                    backgroundColor: '#ffffff',
+                    logging: false
+                });
+
+                const pdf = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                await addPageFromCanvas(pdf, canvas);
+                canvas.width = 0;
+                canvas.height = 0;
+
+                const pdfBlob = pdf.output('blob');
+                zip.file(`二下练习_第${i}份.pdf`, pdfBlob);
+
+                if (i < count) {
+                    await new Promise(r => setTimeout(r, 800));
+                    if (i % 5 === 0) {
+                        loadingTime.innerText = '深度释放内存，请稍后...';
+                        await new Promise(r => setTimeout(r, 2500));
+                    }
+                }
+            }
+
+            loadingText.innerText = '正在打包ZIP，请稍候...';
+            loadingTime.innerText = '';
+            progressFill.style.width = '100%';
+            const content = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `二下练习_${count}份合集.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert('打包失败，请尝试减少份数');
+        } finally {
+            loading.classList.remove('show');
+            loadingText.innerText = '正在生成PDF，请稍候...';
+            loadingTime.innerText = '';
+            progressFill.style.width = '0%';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        generateAll();
+        document.getElementById('generateQuestions').addEventListener('click', generateAll);
+        document.getElementById('downloadSinglePdf').addEventListener('click', downloadSingle);
+        document.getElementById('downloadZip').addEventListener('click', downloadZip);
+    });
+    window.addEventListener('beforeprint', () => { document.querySelector('.controls').style.display = 'none'; });
+    window.addEventListener('afterprint', () => { document.querySelector('.controls').style.display = 'flex'; });
+})();
+</script>
+</body>
+</html>
