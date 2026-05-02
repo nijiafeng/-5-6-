@@ -4,12 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>二下计算练习（207、208）- 随机出题系统</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
-    </script>
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js">
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js">
-    </script>
+    <!-- 国内高速镜像 -->
+    <script src="https://s4.zstatic.net/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://s4.zstatic.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://s4.zstatic.net/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -194,11 +192,16 @@
             transition: 0.2s;
             white-space: nowrap;
         }
+        .control-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
         .control-btn.generate { background-color: #2b7a4b; }
-        .control-btn.generate:hover { background-color: #1e5a38; }
-        .control-btn:hover { background-color: #1e3a5f; transform: translateY(-1px); }
+        .control-btn.generate:hover:not(:disabled) { background-color: #1e5a38; }
+        .control-btn:hover:not(:disabled) { background-color: #1e3a5f; transform: translateY(-1px); }
         .control-btn.zip { background-color: #e67e22; }
-        .control-btn.zip:hover { background-color: #d35400; }
+        .control-btn.zip:hover:not(:disabled) { background-color: #d35400; }
         .copy-input {
             display: inline-flex;
             align-items: center;
@@ -307,21 +310,20 @@
         <div class="calculation-row" id="part4-row1"></div>
         <div class="calculation-row" id="part4-row2"></div>
     </div>
-    <!-- 删除完成时间 -->
 </div>
 
 <script>
 (function() {
-    // ---------- 安全随机数 ----------
+    // ---------- 基础随机函数 ----------
     function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-    function oneDigit() { return rand(1, 9); }
-    function twoDigit() { return rand(10, 99); }
-    function threeDigit() { return rand(100, 999); }
-    function randHundred() { return rand(1, 9) * 100; }
-    function randThousand() { return rand(1, 9) * 1000; }
-    function randThousandHundred() { return rand(1, 9) * 1000 + rand(1, 9) * 100; }
-    function randTens() { return rand(1, 9) * 100 + rand(1, 9) * 10; }
-    function randDecade() { return rand(1, 9) * 10; }
+    const oneDigit = () => rand(1, 9);
+    const twoDigit = () => rand(10, 99);
+    const threeDigit = () => rand(100, 999);
+    const randHundred = () => rand(1, 9) * 100;
+    const randThousand = () => rand(1, 9) * 1000;
+    const randThousandHundred = () => rand(1, 9) * 1000 + rand(1, 9) * 100;
+    const randTens = () => rand(1, 9) * 100 + rand(1, 9) * 10;
+    const randDecade = () => rand(1, 9) * 10;
     const addOrSub = () => Math.random() < 0.5 ? '+' : '-';
 
     function clamp(val) {
@@ -330,364 +332,179 @@
         return val;
     }
 
-    function generateUniqueItems(generatorFunc, targetCount) {
-        const items = [];
-        const set = new Set();
-        let attempts = 0;
-        while (items.length < targetCount && attempts < 400) {
-            const newItem = generatorFunc();
-            if (newItem.answer !== undefined && (newItem.answer < 0 || newItem.answer > 10000)) {
-                attempts++;
-                continue;
-            }
-            const key = newItem.html.replace(/\s+/g, '');
-            if (!set.has(key)) {
-                set.add(key);
-                items.push(newItem);
-            }
-            attempts++;
-        }
-        while (items.length < targetCount) items.push({ html: `1 + 1 =`, answer: 2 });
-        return items;
+    // 安全循环
+    function safeWhile(conditionFn, actionFn, max = 50) {
+        let i = 0;
+        while (conditionFn() && i < max) { actionFn(); i++; }
     }
 
-    // 原有20题（保持不变）
-    function buildOneOriginal() {
+    // ---------- 原有20题生成器 ----------
+    function createOriginalItem() {
         const type = rand(1, 20);
-        if (type === 1) {
-            let a = oneDigit(), b = oneDigit(), c = rand(1, 80);
-            return { html: `${a} × ${b} + ${c} =`, answer: clamp(a * b + c) };
-        }
-        if (type === 2) {
-            let a = oneDigit(), b = oneDigit();
-            let prod = a * b;
-            let c = prod > 1 ? rand(1, prod - 1) : 1;
-            return { html: `${a} × ${b} - ${c} =`, answer: prod - c };
-        }
-        if (type === 3) {
-            let a = twoDigit(), b = twoDigit(), c = rand(10, 80);
-            return { html: `${a} + ${b} + ${c} =`, answer: clamp(a + b + c) };
-        }
-        if (type === 4) {
-            let A = rand(70, 99), B = rand(10, 30), C = rand(10, 30);
-            while (A - B - C < 0) { B = rand(10, 30); C = rand(10, 30); }
-            return { html: `${A} - ${B} - ${C} =`, answer: A - B - C };
-        }
-        if (type === 5) {
-            let a = twoDigit(), b = twoDigit();
-            let c = rand(10, Math.min(99, a + b));
-            return { html: `${a} + ${b} - ${c} =`, answer: a + b - c };
-        }
-        if (type === 6) {
-            let a = rand(40, 99), b = rand(10, a - 5), c = twoDigit();
-            return { html: `${a} - ${b} + ${c} =`, answer: clamp(a - b + c) };
-        }
-        if (type === 7) {
-            let num = rand(1, 80), a = oneDigit(), b = oneDigit();
-            return { html: `${num} + ${a} × ${b} =`, answer: clamp(num + a * b) };
-        }
-        if (type === 8) {
-            let a = oneDigit(), b = oneDigit();
-            let prod = a * b;
-            let num = rand(prod, 99);
-            return { html: `${num} - ${a} × ${b} =`, answer: num - prod };
-        }
-        if (type === 9) {
-            let divisor = rand(2, 9), quot = rand(1, 9);
-            let dividend = divisor * quot;
-            let two = twoDigit();
-            return { html: `${two} + ${dividend} ÷ ${divisor} =`, answer: clamp(two + quot) };
-        }
-        if (type === 10) {
-            let divisor = rand(2, 9), quot = rand(1, 9);
-            let dividend = divisor * quot;
-            let two = rand(dividend / quot + 1, 99);
-            return { html: `${two} - ${dividend} ÷ ${divisor} =`, answer: two - quot };
-        }
-        if (type === 11) {
-            let divisor = rand(2, 9), quot = rand(1, 9);
-            let dividend = divisor * quot;
-            let add = rand(1, 70);
-            return { html: `${dividend} ÷ ${divisor} + ${add} =`, answer: clamp(quot + add) };
-        }
-        if (type === 12) {
-            let divisor = rand(2, 9), quot = rand(2, 9);
-            let dividend = divisor * quot;
-            let sub = rand(1, quot - 1);
-            return { html: `${dividend} ÷ ${divisor} - ${sub} =`, answer: quot - sub };
-        }
-        if (type >= 13 && type <= 16) {
-            let dv = rand(3, 9), qt = rand(2, 9), rem = rand(1, dv - 1);
-            let dd = dv * qt + rem;
-            return { html: `${dd} ÷ ${dv} =`, answer: `${qt}……${rem}` };
-        }
-        if (type === 17) {
-            let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
-            let dd = dv * qt + rem;
-            return { html: `( <span class="blank"></span> ) ÷ ${dv} = ${qt}<span class="ellipsis">……</span>${rem}`, answer: dd };
-        }
-        if (type === 18) {
-            let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
-            let dd = dv * qt + rem;
-            return { html: `${dd} ÷ ( <span class="blank"></span> ) = ${qt}<span class="ellipsis">……</span>${rem}`, answer: dv };
-        }
-        if (type === 19) {
-            let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
-            let dd = dv * qt + rem;
-            return { html: `${dd} ÷ ${dv} = ( <span class="blank"></span> )<span class="ellipsis">……</span>${rem}`, answer: qt };
-        }
-        let dv = rand(2, 9), qt = rand(1, 9), rem = rand(1, dv - 1);
-        let dd = dv * qt + rem;
-        return { html: `${dd} ÷ ${dv} = ${qt}<span class="ellipsis">……</span>( <span class="blank"></span> )`, answer: rem };
-    }
-    function buildOriginal20() { return generateUniqueItems(() => buildOneOriginal(), 20); }
-
-    // 新增16道题（保持不变）
-    function type1() {
-        let a = randHundred(), b = randHundred();
-        if (Math.random() < 0.5) return { html: `${a} + ${b} =`, answer: clamp(a + b) };
-        else return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-    }
-    function type2() {
-        let a = randThousand(), b = randThousand();
-        if (Math.random() < 0.5) {
-            let sum = a + b;
-            while (sum > 10000) { a = randThousand(); b = randThousand(); sum = a + b; }
-            return { html: `${a} + ${b} =`, answer: sum };
-        } else {
-            return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-        }
-    }
-    function type3() {
-        let useOrder = Math.random() < 0.5;
-        let a = useOrder ? randThousandHundred() : randThousand();
-        let b = useOrder ? randThousand() : randThousandHundred();
-        if (Math.random() < 0.5) {
-            let sum = a + b;
-            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-            else return { html: `${a} + ${b} =`, answer: sum };
-        } else {
-            return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-        }
-    }
-    function type4() {
-        let a = randThousandHundred(), b = randHundred();
-        if (Math.random() < 0.5) {
-            let sum = a + b;
-            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-            else return { html: `${a} + ${b} =`, answer: sum };
-        } else {
-            let sum = a + b;
-            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-            else return { html: `${b} + ${a} =`, answer: sum };
-        }
-    }
-    function type5() {
-        let a = randThousandHundred(), b = randThousandHundred();
-        if (Math.random() < 0.5) {
-            let sum = a + b;
-            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-            else return { html: `${a} + ${b} =`, answer: sum };
-        } else {
-            return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-        }
-    }
-    function type6() {
-        let a = randThousand(), b = randHundred();
-        if (Math.random() < 0.5) {
-            let sum = a + b;
-            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-            else return { html: `${a} + ${b} =`, answer: sum };
-        } else {
-            let sum = a + b;
-            if (sum > 10000) return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
-            else return { html: `${b} + ${a} =`, answer: sum };
+        switch (type) {
+            case 1: { let a=oneDigit(),b=oneDigit(),c=rand(1,80); return {html:`${a} × ${b} + ${c} =`, answer:a*b+c}; }
+            case 2: { let a=oneDigit(),b=oneDigit(),c=rand(1,a*b-1>0?a*b-1:1); return {html:`${a} × ${b} - ${c} =`, answer:a*b-c}; }
+            case 3: { let a=twoDigit(),b=twoDigit(),c=rand(10,80); return {html:`${a} + ${b} + ${c} =`, answer:clamp(a+b+c)}; }
+            case 4: { let A=rand(70,99),B=rand(10,30),C=rand(10,30); safeWhile(()=>A-B-C<0,()=>{B=rand(10,30);C=rand(10,30);}); return {html:`${A} - ${B} - ${C} =`, answer:A-B-C}; }
+            case 5: { let a=twoDigit(),b=twoDigit(),c=rand(10,Math.min(99,a+b)); return {html:`${a} + ${b} - ${c} =`, answer:a+b-c}; }
+            case 6: { let a=rand(40,99),b=rand(10,a-5),c=twoDigit(); return {html:`${a} - ${b} + ${c} =`, answer:clamp(a-b+c)}; }
+            case 7: { let n=rand(1,80),a=oneDigit(),b=oneDigit(); return {html:`${n} + ${a} × ${b} =`, answer:clamp(n+a*b)}; }
+            case 8: { let a=oneDigit(),b=oneDigit(),n=rand(a*b,99); return {html:`${n} - ${a} × ${b} =`, answer:n-a*b}; }
+            case 9: { let d=rand(2,9),q=rand(1,9),dd=d*q,t=twoDigit(); return {html:`${t} + ${dd} ÷ ${d} =`, answer:clamp(t+q)}; }
+            case 10: { let d=rand(2,9),q=rand(1,9),dd=d*q,t=rand(q+1,99); return {html:`${t} - ${dd} ÷ ${d} =`, answer:t-q}; }
+            case 11: { let d=rand(2,9),q=rand(1,9),dd=d*q,a=rand(1,70); return {html:`${dd} ÷ ${d} + ${a} =`, answer:clamp(q+a)}; }
+            case 12: { let d=rand(2,9),q=rand(2,9),dd=d*q,s=rand(1,q-1); return {html:`${dd} ÷ ${d} - ${s} =`, answer:q-s}; }
+            case 13: case 14: case 15: case 16: { let dv=rand(3,9),qt=rand(2,9),rem=rand(1,dv-1),dd=dv*qt+rem; return {html:`${dd} ÷ ${dv} =`, answer:`${qt}……${rem}`}; }
+            case 17: { let dv=rand(2,9),qt=rand(1,9),rem=rand(1,dv-1),dd=dv*qt+rem; return {html:`( <span class="blank"></span> ) ÷ ${dv} = ${qt}<span class="ellipsis">……</span>${rem}`, answer:dd}; }
+            case 18: { let dv=rand(2,9),qt=rand(1,9),rem=rand(1,dv-1),dd=dv*qt+rem; return {html:`${dd} ÷ ( <span class="blank"></span> ) = ${qt}<span class="ellipsis">……</span>${rem}`, answer:dv}; }
+            case 19: { let dv=rand(2,9),qt=rand(1,9),rem=rand(1,dv-1),dd=dv*qt+rem; return {html:`${dd} ÷ ${dv} = ( <span class="blank"></span> )<span class="ellipsis">……</span>${rem}`, answer:qt}; }
+            default: { let dv=rand(2,9),qt=rand(1,9),rem=rand(1,dv-1),dd=dv*qt+rem; return {html:`${dd} ÷ ${dv} = ${qt}<span class="ellipsis">……</span>( <span class="blank"></span> )`, answer:rem}; }
         }
     }
 
-    function generateBlankEquation(numGen, targetGen) {
-        const modes = ['A+', 'A-', 'B+', 'B-'];
-        for (let attempt = 0; attempt < 150; attempt++) {
-            let mode = modes[rand(0, modes.length - 1)];
-            let num = numGen();
-            let target = targetGen();
-            let blank, html;
-            if (mode === 'A+') {
-                if (target >= num) {
-                    blank = target - num;
-                    html = `( <span class="blank"></span> ) + ${num} = ${target}`;
-                    if (blank <= 10000) return { html, answer: blank };
-                }
-            } else if (mode === 'A-') {
-                blank = target + num;
-                if (blank <= 10000) {
-                    html = `( <span class="blank"></span> ) - ${num} = ${target}`;
-                    return { html, answer: blank };
-                }
-            } else if (mode === 'B+') {
-                if (target >= num) {
-                    blank = target - num;
-                    html = `${num} + ( <span class="blank"></span> ) = ${target}`;
-                    if (blank <= 10000) return { html, answer: blank };
-                }
-            } else if (mode === 'B-') {
-                if (num >= target) {
-                    blank = num - target;
-                    html = `${num} - ( <span class="blank"></span> ) = ${target}`;
-                    if (blank <= 10000) return { html, answer: blank };
-                }
+    function buildOriginal20() {
+        const items = [];
+        const keys = new Set();
+        while (items.length < 20) {
+            const item = createOriginalItem();
+            if (item.answer < 0 || item.answer > 10000) continue;
+            const key = item.html.replace(/\s+/g, '');
+            if (!keys.has(key)) {
+                keys.add(key);
+                items.push(item);
             }
+            if (items.length === 20) break;
         }
-        return { html: `( <span class="blank"></span> ) + 100 = 200`, answer: 100 };
-    }
-
-    function type7() { return generateBlankEquation(randHundred, randThousand); }
-    function type8() { return generateBlankEquation(randHundred, randThousandHundred); }
-    function type9() { return generateBlankEquation(randHundred, randHundred); }
-    function type10() { return generateBlankEquation(randThousand, randThousand); }
-    function type11() { return generateBlankEquation(randThousand, randThousandHundred); }
-    function type12() { return generateBlankEquation(randThousandHundred, randThousand); }
-    function type13() { return generateBlankEquation(randThousandHundred, randThousandHundred); }
-
-    function type14() {
-        let a, b;
-        if (Math.random() < 0.5) { a = randHundred(); b = randTens(); }
-        else { a = randTens(); b = randHundred(); }
-        let op = addOrSub();
-        let result = op === '+' ? a + b : a - b;
-        if (result < 0) result = b - a;
-        return { html: `${Math.max(a, b)} ${op} ${Math.min(a, b)} =`, answer: clamp(result) };
-    }
-    function type15() {
-        let a, b;
-        if (Math.random() < 0.5) { a = randHundred(); b = randDecade(); }
-        else { a = randDecade(); b = randHundred(); }
-        let op = addOrSub();
-        let result = op === '+' ? a + b : a - b;
-        if (result < 0) result = b - a;
-        return { html: `${Math.max(a, b)} ${op} ${Math.min(a, b)} =`, answer: clamp(result) };
-    }
-    function type16() {
-        let a = randTens(), b = randTens();
-        let op = addOrSub();
-        let result = op === '+' ? a + b : a - b;
-        if (result < 0) result = b - a;
-        return { html: `${Math.max(a, b)} ${op} ${Math.min(a, b)} =`, answer: clamp(result) };
-    }
-
-    function buildExtra16() {
-        let items = [type1(), type2(), type3(), type4(), type5(), type6(),
-                     type7(), type8(), type9(), type10(), type11(), type12(),
-                     type13(), type14(), type15(), type16()];
-        for (let i = 0; i < items.length; i++) items[i].answer = clamp(items[i].answer);
-        for (let i = items.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [items[i], items[j]] = [items[j], items[i]];
-        }
+        while (items.length < 20) items.push({html:'1 + 1 =', answer:2});
         return items;
     }
 
+    // ---------- 新增16题（严格按顺序定义） ----------
+    function buildExtra16() {
+        // 括号模板辅助函数
+        function blankTemplate(numGen, targetGen) {
+            const modes = ['A+','A-','B+','B-'];
+            for (let i=0; i<30; i++) {
+                const mode = modes[rand(0,3)];
+                const num = numGen(), target = targetGen();
+                if (mode === 'A+' && target >= num) {
+                    return {html:`( <span class="blank"></span> ) + ${num} = ${target}`, answer: target-num};
+                }
+                if (mode === 'A-' && target+num <= 10000) {
+                    return {html:`( <span class="blank"></span> ) - ${num} = ${target}`, answer: target+num};
+                }
+                if (mode === 'B+' && target >= num) {
+                    return {html:`${num} + ( <span class="blank"></span> ) = ${target}`, answer: target-num};
+                }
+                if (mode === 'B-' && num >= target) {
+                    return {html:`${num} - ( <span class="blank"></span> ) = ${target}`, answer: num-target};
+                }
+            }
+            return {html:`( <span class="blank"></span> ) + 100 = 200`, answer:100};
+        }
+
+        return [
+            // type1 ~ type6 直接计算
+            (()=>{let a=randHundred(),b=randHundred(); return Math.random()<0.5?{html:`${a} + ${b} =`,answer:clamp(a+b)}:{html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)};})(),
+            (()=>{let a=randThousand(),b=randThousand(); if(Math.random()<0.5){let s=a+b; safeWhile(()=>s>10000,()=>{a=randThousand();b=randThousand();s=a+b;}); return {html:`${a} + ${b} =`,answer:s};}else{return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)};}})(),
+            (()=>{let u=Math.random()<0.5,a=u?randThousandHundred():randThousand(),b=u?randThousand():randThousandHundred(); if(Math.random()<0.5){let s=a+b; if(s>10000)return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)}; else return {html:`${a} + ${b} =`,answer:s};}else{return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)};}})(),
+            (()=>{let a=randThousandHundred(),b=randHundred(); if(Math.random()<0.5){let s=a+b; if(s>10000)return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)}; else return {html:`${a} + ${b} =`,answer:s};}else{let s=a+b; if(s>10000)return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)}; else return {html:`${b} + ${a} =`,answer:s};}})(),
+            (()=>{let a=randThousandHundred(),b=randThousandHundred(); if(Math.random()<0.5){let s=a+b; if(s>10000)return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)}; else return {html:`${a} + ${b} =`,answer:s};}else{return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)};}})(),
+            (()=>{let a=randThousand(),b=randHundred(); if(Math.random()<0.5){let s=a+b; if(s>10000)return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)}; else return {html:`${a} + ${b} =`,answer:s};}else{let s=a+b; if(s>10000)return {html:`${Math.max(a,b)} - ${Math.min(a,b)} =`,answer:Math.abs(a-b)}; else return {html:`${b} + ${a} =`,answer:s};}})(),
+
+            // type7 ~ type13 括号填空（7种）
+            blankTemplate(randHundred, randThousand),                // type7
+            blankTemplate(randHundred, randThousandHundred),         // type8
+            blankTemplate(randHundred, randHundred),                 // type9
+            blankTemplate(randThousand, randThousand),               // type10
+            blankTemplate(randThousand, randThousandHundred),        // type11
+            blankTemplate(randThousandHundred, randThousand),        // type12
+            blankTemplate(randThousandHundred, randThousandHundred), // type13
+
+            // type14 ~ type16 混合运算
+            (()=>{let a=randHundred(),b=randTens(),op=addOrSub(),r=op==='+'?a+b:a-b; if(r<0)r=b-a; return {html:`${Math.max(a,b)} ${op} ${Math.min(a,b)} =`,answer:clamp(r)};})(),
+            (()=>{let a=randHundred(),b=randDecade(),op=addOrSub(),r=op==='+'?a+b:a-b; if(r<0)r=b-a; return {html:`${Math.max(a,b)} ${op} ${Math.min(a,b)} =`,answer:clamp(r)};})(),
+            (()=>{let a=randTens(),b=randTens(),op=addOrSub(),r=op==='+'?a+b:a-b; if(r<0)r=b-a; return {html:`${Math.max(a,b)} ${op} ${Math.min(a,b)} =`,answer:clamp(r)};})(),
+        ];
+    }
+
+    // ---------- 渲染第一部分 ----------
     function renderPart1() {
         const container = document.getElementById('part1');
-        container.innerHTML = '';
+        const fragment = document.createDocumentFragment();
         const all = [...buildOriginal20(), ...buildExtra16()];
+        // 洗牌
         for (let i = all.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
+            const j = rand(0, i);
             [all[i], all[j]] = [all[j], all[i]];
         }
         all.forEach(item => {
             const div = document.createElement('div');
             div.className = 'question';
             div.innerHTML = item.html;
-            container.appendChild(div);
+            fragment.appendChild(div);
         });
+        container.innerHTML = '';
+        container.appendChild(fragment);
     }
 
+    // ---------- 第二部分（除法竖式） ----------
     function renderPart3() {
         const row = document.getElementById('part3-row');
         row.innerHTML = '';
         for (let i = 0; i < 4; i++) {
-            const divisor = rand(3, 9), quotient = rand(3, 9), remainder = rand(1, divisor - 1);
-            const dividend = divisor * quotient + remainder;
+            const d = rand(3,9), q = rand(3,9), r = rand(1, d-1);
+            const dividend = d * q + r;
             const divItem = document.createElement('div');
             divItem.className = 'division-item';
-            divItem.innerHTML = `<div class="division-question">${dividend} ÷ ${divisor} =</div><div class="division-space"></div>`;
+            divItem.innerHTML = `<div class="division-question">${dividend} ÷ ${d} =</div><div class="division-space"></div>`;
             row.appendChild(divItem);
         }
     }
 
+    // ---------- 第三部分（竖式计算2） ----------
     function generateThirdPartQuestion(type) {
-        switch (type) {
+        switch(type) {
             case 'tripleAddTriple': {
-                let a = threeDigit(), b = threeDigit();
-                let sum = a + b;
-                if (Math.random() < 0.5) while (sum >= 1000) { a = threeDigit(); b = threeDigit(); sum = a + b; }
-                else while (sum < 1000 || sum > 10000) { a = threeDigit(); b = threeDigit(); sum = a + b; }
-                return { html: `${a} + ${b} =`, answer: sum };
+                let a=threeDigit(),b=threeDigit(),sum=a+b;
+                safeWhile(()=>(Math.random()<0.5&&sum>=1000)||(sum<1000||sum>10000),()=>{a=threeDigit();b=threeDigit();sum=a+b;});
+                return {html:`${a} + ${b} =`, answer:sum};
             }
             case 'twoThreeAdd': {
-                if (Math.random() < 0.5) {
-                    let a = twoDigit(), b = threeDigit();
-                    let sum = a + b;
-                    while (sum > 10000) { a = twoDigit(); b = threeDigit(); sum = a + b; }
-                    return { html: `${a} + ${b} =`, answer: sum };
-                } else {
-                    let a = threeDigit(), b = twoDigit();
-                    let sum = a + b;
-                    while (sum > 10000) { a = threeDigit(); b = twoDigit(); sum = a + b; }
-                    return { html: `${a} + ${b} =`, answer: sum };
-                }
+                if(Math.random()<0.5){let a=twoDigit(),b=threeDigit(),sum=a+b; safeWhile(()=>sum>10000,()=>{a=twoDigit();b=threeDigit();sum=a+b;}); return {html:`${a} + ${b} =`,answer:sum};}
+                else {let a=threeDigit(),b=twoDigit(),sum=a+b; safeWhile(()=>sum>10000,()=>{a=threeDigit();b=twoDigit();sum=a+b;}); return {html:`${a} + ${b} =`,answer:sum};}
             }
             case 'fourAddFour': {
-                let a = rand(1000, 5000), b = rand(1000, 5000);
-                let sum = a + b;
-                while (sum > 10000) { a = rand(1000, 5000); b = rand(1000, 5000); sum = a + b; }
-                return { html: `${a} + ${b} =`, answer: sum };
+                let a=rand(1000,5000),b=rand(1000,5000),sum=a+b;
+                safeWhile(()=>sum>10000,()=>{a=rand(1000,5000);b=rand(1000,5000);sum=a+b;});
+                return {html:`${a} + ${b} =`, answer:sum};
             }
             case 'fourThreeAdd': {
-                if (Math.random() < 0.5) {
-                    let a = rand(1000, 7000), b = threeDigit();
-                    let sum = a + b;
-                    while (sum > 10000) { a = rand(1000, 7000); b = threeDigit(); sum = a + b; }
-                    return { html: `${a} + ${b} =`, answer: sum };
-                } else {
-                    let a = threeDigit(), b = rand(1000, 7000);
-                    let sum = a + b;
-                    while (sum > 10000) { a = threeDigit(); b = rand(1000, 7000); sum = a + b; }
-                    return { html: `${a} + ${b} =`, answer: sum };
-                }
+                if(Math.random()<0.5){let a=rand(1000,7000),b=threeDigit(),sum=a+b; safeWhile(()=>sum>10000,()=>{a=rand(1000,7000);b=threeDigit();sum=a+b;}); return {html:`${a} + ${b} =`,answer:sum};}
+                else {let a=threeDigit(),b=rand(1000,7000),sum=a+b; safeWhile(()=>sum>10000,()=>{a=threeDigit();b=rand(1000,7000);sum=a+b;}); return {html:`${a} + ${b} =`,answer:sum};}
             }
             case 'fourSubThree': {
-                let a = rand(1000, 9999), b = threeDigit();
-                let diff = a - b;
-                while (diff < 0) { a = rand(1000, 9999); b = threeDigit(); diff = a - b; }
-                return { html: `${a} - ${b} =`, answer: diff };
+                let a=rand(1000,9999),b=threeDigit(),diff=a-b;
+                safeWhile(()=>diff<0,()=>{a=rand(1000,9999);b=threeDigit();diff=a-b;});
+                return {html:`${a} - ${b} =`, answer:diff};
             }
             case 'fourSubFour': {
-                let a = rand(1000, 9999), b = rand(1000, 9999);
-                let diff = a - b;
-                while (diff < 0) { a = rand(1000, 9999); b = rand(1000, 9999); diff = a - b; }
-                return { html: `${a} - ${b} =`, answer: diff };
+                let a=rand(1000,9999),b=rand(1000,9999),diff=a-b;
+                safeWhile(()=>diff<0,()=>{a=rand(1000,9999);b=rand(1000,9999);diff=a-b;});
+                return {html:`${a} - ${b} =`, answer:diff};
             }
             case 'specialSubA': {
-                let a = rand(101, 199);
-                let b = rand(10, 98);
-                let aOnes = a % 10;
-                let bOnes = b % 10;
-                while (aOnes >= bOnes) {
-                    b = Math.floor(b / 10) * 10 + rand( (aOnes + 1) , 9 );
-                    bOnes = b % 10;
-                }
-                if (a < b) [a, b] = [b, a];
-                return { html: `${Math.max(a, b)} - ${Math.min(a, b)} =`, answer: Math.abs(a - b) };
+                let a=rand(101,199),b=rand(10,98);
+                safeWhile(()=>(a%10)>=(b%10),()=>{b=rand(10,98);});
+                if(a<b)[a,b]=[b,a];
+                return {html:`${a} - ${b} =`, answer:Math.abs(a-b)};
             }
             case 'specialSubB': {
-                let a = threeDigit(), b = threeDigit();
-                let diff = a - b;
-                while (diff < 0) { a = threeDigit(); b = threeDigit(); diff = a - b; }
-                return { html: `${a} - ${b} =`, answer: diff };
+                let a=threeDigit(),b=threeDigit(),diff=a-b;
+                safeWhile(()=>diff<0,()=>{a=threeDigit();b=threeDigit();diff=a-b;});
+                return {html:`${a} - ${b} =`, answer:diff};
             }
-            default: return { html: `1 + 1 =`, answer: 2 };
+            default: return {html:`1 + 1 =`, answer:2};
         }
     }
 
@@ -695,57 +512,59 @@
         const row1 = document.getElementById('part4-row1');
         const row2 = document.getElementById('part4-row2');
         row1.innerHTML = ''; row2.innerHTML = '';
-        let types = ['tripleAddTriple', 'twoThreeAdd', 'fourAddFour', 'fourThreeAdd', 
-                     'fourSubThree', 'fourSubFour', 'specialSubA', 'specialSubB'];
-        for (let i = types.length - 1; i > 0; i--) { 
-            const j = Math.floor(Math.random() * (i + 1)); 
-            [types[i], types[j]] = [types[j], types[i]]; 
-        }
-        let verifyIndices = [];
-        while (verifyIndices.length < 2) { 
-            let idx = rand(0, 7); 
-            if (!verifyIndices.includes(idx)) verifyIndices.push(idx); 
-        }
-        for (let i = 0; i < types.length; i++) {
-            let q = generateThirdPartQuestion(types[i]);
-            let needStar = verifyIndices.includes(i);
-            let starMark = needStar ? '<span class="star">*</span>' : '';
-            let text = q.html;
-            let item = document.createElement('div');
-            item.className = 'calculation-item';
-            if (needStar) {
-                item.innerHTML = `<div class="calculation-question">${starMark} ${text}</div><div class="verification-container"><div class="verification-calculation-space"></div><div class="verification-space"></div></div>`;
-            } else {
-                item.innerHTML = `<div class="calculation-question">${starMark} ${text}</div><div class="calculation-space"></div>`;
-            }
-            if (i < 4) row1.appendChild(item); else row2.appendChild(item);
+        const types = ['tripleAddTriple','twoThreeAdd','fourAddFour','fourThreeAdd','fourSubThree','fourSubFour','specialSubA','specialSubB'];
+        for (let i=types.length-1; i>0; i--) { const j=rand(0,i); [types[i],types[j]]=[types[j],types[i]]; }
+        const verifySet = new Set();
+        while (verifySet.size < 2) verifySet.add(rand(0,7));
+        for (let i=0; i<types.length; i++) {
+            const q = generateThirdPartQuestion(types[i]);
+            const star = verifySet.has(i) ? '<span class="star">*</span>' : '';
+            const div = document.createElement('div');
+            div.className = 'calculation-item';
+            div.innerHTML = star ?
+                `<div class="calculation-question">${star} ${q.html}</div><div class="verification-container"><div class="verification-calculation-space"></div><div class="verification-space"></div></div>` :
+                `<div class="calculation-question">${star} ${q.html}</div><div class="calculation-space"></div>`;
+            (i < 4 ? row1 : row2).appendChild(div);
         }
     }
 
-    function generateAll() { renderPart1(); renderPart3(); renderPart4(); }
+    // ---- 防抖 ----
+    let isGenerating = false;
+    function generateAll() {
+        if (isGenerating) return;
+        isGenerating = true;
+        const btn = document.getElementById('generateQuestions');
+        btn.disabled = true;
+        try {
+            renderPart1();
+            renderPart3();
+            renderPart4();
+        } finally {
+            setTimeout(() => { btn.disabled = false; isGenerating = false; }, 200);
+        }
+    }
 
-    // 高清截图添加到PDF
+    // ---- PDF 工具 ----
     async function addPageFromCanvas(pdf, canvas) {
         return new Promise((resolve, reject) => {
             canvas.toBlob(async (blob) => {
-                if (!blob) { reject(new Error('Canvas toBlob 失败')); return; }
+                if (!blob) { reject(new Error('blob fail')); return; }
                 const url = URL.createObjectURL(blob);
                 const img = new Image();
                 img.onload = () => {
-                    const pageWidth = pdf.internal.pageSize.getWidth();
-                    const imgWidth = pageWidth - 20;
-                    const imgHeight = (img.height * imgWidth) / img.width;
-                    pdf.addImage(img, 'JPEG', 10, 5, imgWidth, imgHeight);
+                    const pw = pdf.internal.pageSize.getWidth();
+                    const iw = pw - 20;
+                    const ih = (img.height * iw) / img.width;
+                    pdf.addImage(img, 'JPEG', 10, 5, iw, ih);
                     URL.revokeObjectURL(url);
                     resolve();
                 };
-                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片加载失败')); };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img fail')); };
                 img.src = url;
             }, 'image/jpeg', 0.92);
         });
     }
 
-    // 下载当前单份PDF
     async function downloadSingle() {
         const loading = document.getElementById('loading');
         loading.classList.add('show');
@@ -759,7 +578,6 @@
         } catch(e) { alert('生成失败'); } finally { loading.classList.remove('show'); }
     }
 
-    // ★ 打包下载ZIP（每次生成独立PDF，最终打包）
     async function downloadZip() {
         let count = parseInt(document.getElementById('pdfCount').value);
         if (isNaN(count) || count < 1) count = 1;
@@ -779,11 +597,9 @@
             for (let i = 1; i <= count; i++) {
                 const percent = Math.round((i / count) * 100);
                 loadingText.innerText = `正在生成第 ${i}/${count} 份试卷 (${percent}%)`;
-
                 if (i > 1) {
                     const elapsed = (Date.now() - startTime) / 1000;
-                    const avg = elapsed / (i - 1);
-                    const remaining = Math.round(avg * (count - i + 1));
+                    const remaining = Math.round((elapsed / (i-1)) * (count - i + 1));
                     loadingTime.innerText = `预计还需 ${remaining} 秒`;
                 }
                 progressFill.style.width = percent + '%';
@@ -791,16 +607,10 @@
                 generateAll();
                 await new Promise(r => setTimeout(r, 250));
 
-                const canvas = await html2canvas(document.getElementById('content'), {
-                    scale: 2.0,
-                    backgroundColor: '#ffffff',
-                    logging: false
-                });
-
+                const canvas = await html2canvas(document.getElementById('content'), { scale: 2.0, backgroundColor: '#ffffff', logging: false });
                 const pdf = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 await addPageFromCanvas(pdf, canvas);
-                canvas.width = 0;
-                canvas.height = 0;
+                canvas.width = 0; canvas.height = 0;
 
                 const pdfBlob = pdf.output('blob');
                 zip.file(`二下练习_第${i}份.pdf`, pdfBlob);
@@ -814,7 +624,7 @@
                 }
             }
 
-            loadingText.innerText = '正在打包ZIP，请稍候...';
+            loadingText.innerText = '正在打包ZIP...';
             loadingTime.innerText = '';
             progressFill.style.width = '100%';
             const content = await zip.generateAsync({ type: 'blob' });
@@ -827,7 +637,7 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         } catch (e) {
-            alert('打包失败，请尝试减少份数');
+            alert('打包失败，请减少份数');
         } finally {
             loading.classList.remove('show');
             loadingText.innerText = '正在生成PDF，请稍候...';
